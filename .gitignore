@@ -1,0 +1,11 @@
+.env
+*.env
+secrets/
+data/
+config.json
+passwd
+*.log
+__pycache__/
+.venv/
+*.pyc
+.impeccable/

@@ -1,0 +1,48 @@
+# Локальный AI-агент для почты: Ollama (модель) + скрипт разбора. Эпизод 32, канал @ByteAutomate_AI.
+# Запуск: docker compose up -d. Модель один раз: docker compose exec ollama ollama pull qwen2.5:7b
+# Файл написан по документации и на вашем железе не запускался.
+#
+# Порты наружу НЕ публикуются: Ollama доступна только контейнеру агента внутри сети compose.
+# Секреты лежат в файлах ./secrets/*.txt (по одному значению в файле), в git их не коммитить.
+
+services:
+  ollama:
+    image: ollama/ollama:latest          # лучше закрепить конкретную версию после проверки
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama      # модели хранятся здесь (несколько ГБ)
+    mem_limit: 10g                       # потолок памяти контейнера; для сжатой модели нужно от 8 ГБ на машине
+
+  mail_agent:
+    image: python:3.12-slim
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    working_dir: /app
+    command: ["python", "-u", "/app/mail_summarizer.py"]
+    volumes:
+      - ./mail_summarizer.py:/app/mail_summarizer.py:ro
+      - ./data:/data                     # состояние: последнее обработанное письмо и дайджест
+    environment:
+      IMAP_HOST: ${IMAP_HOST:-imap.example.com}
+      IMAP_USER: ${IMAP_USER:?укажите IMAP_USER в файле .env}
+      TG_CHAT_ID: ${TG_CHAT_ID:?укажите TG_CHAT_ID в файле .env}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      ARCHIVE_FOLDER: ${ARCHIVE_FOLDER:-Archive}
+      SPAM_FOLDER: ${SPAM_FOLDER:-Junk}
+      POLL_SECONDS: ${POLL_SECONDS:-120}
+      SKIP_SENDERS: ${SKIP_SENDERS:-}
+      DIGEST_HOUR: ${DIGEST_HOUR:--1}
+    secrets:
+      - imap_password
+      - tg_bot_token
+
+secrets:
+  imap_password:
+    file: ./secrets/imap_password.txt    # пароль приложения почты, не основной пароль
+  tg_bot_token:
+    file: ./secrets/tg_bot_token.txt     # токен от @BotFather
+
+volumes:
+  ollama_models:
